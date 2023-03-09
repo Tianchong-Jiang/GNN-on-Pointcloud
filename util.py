@@ -21,8 +21,7 @@ def cal_loss(pred, gold, smoothing=True):
     if smoothing:
         eps = 0.2
         n_class = pred.size(1)
-
-        one_hot = torch.zeros_like(pred).scatter(1, gold.view(-1, 1), 1)
+        one_hot = torch.zeros_like(pred).scatter(1, gold.view(-1, 1).type(torch.int64), 1)
         one_hot = one_hot * (1 - eps) + (1 - one_hot) * eps / (n_class - 1)
         log_prb = F.log_softmax(pred, dim=1)
 
@@ -32,15 +31,3 @@ def cal_loss(pred, gold, smoothing=True):
 
     return loss
 
-
-class IOStream():
-    def __init__(self, path):
-        self.f = open(path, 'a')
-
-    def cprint(self, text):
-        print(text)
-        self.f.write(text+'\n')
-        self.f.flush()
-
-    def close(self):
-        self.f.close()
