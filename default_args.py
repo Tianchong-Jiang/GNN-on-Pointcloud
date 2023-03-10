@@ -14,7 +14,7 @@ class Args(ParamsProto):
     lr = 0.001
     batch_size = 32
     test_batch_size = 16
-    epochs = 250
+    epochs = 50
 
     # model params
     dropout = 0.5
@@ -22,9 +22,8 @@ class Args(ParamsProto):
     k = 20
 
     # currupt params
-    currupt = ['trans']
-    scale = 0.01
-    prob = 0.5
+    corrupt = ['trans']
+    param = 0.01
 
     # kernel params
     kernel = 'dist' # ['global', 'local', 'dist', 'asym',]

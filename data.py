@@ -19,11 +19,16 @@ from params_proto import Proto
 from scipy.spatial.transform import Rotation as R
 import einops
 import wandb
+import matplotlib.pyplot as plt
+from default_args import Args
+from pathlib import Path
 
 
 def download():
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DATA_DIR = os.path.join(BASE_DIR, 'data')
+    # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    # DATA_DIR = os.path.join(BASE_DIR, 'data')
+    DATA_DIR = Path('/data')
+
     if not os.path.exists(DATA_DIR):
         os.mkdir(DATA_DIR)
     if not os.path.exists(os.path.join(DATA_DIR, 'modelnet40_ply_hdf5_2048')):
@@ -36,8 +41,9 @@ def download():
 
 def load_data(partition):
     download()
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DATA_DIR = os.path.join(BASE_DIR, 'data')
+    # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    # DATA_DIR = os.path.join(BASE_DIR, 'data')
+    DATA_DIR = Path('/data')
     all_data = []
     all_label = []
     for h5_name in glob.glob(os.path.join(DATA_DIR, 'modelnet40_ply_hdf5_2048', 'ply_data_%s*.h5'%partition)):
@@ -105,6 +111,21 @@ class ModelNet40(Dataset):
             wandb.log({f'label:{label}': wandb.Object3D(pointcloud)}, step = i)
         print('visualizing pointcloud on wandb...done')
 
+    def render_image(self, num_samples = 5):
+        print("rendering pointcloud locally...")
+        for i in range(num_samples):
+            pointcloud, label = self.__getitem__(i)
+            # import pdb; pdb.set_trace()
+            fig = plt.figure()
+            ax = fig.add_subplot(projection='3d')
+
+            ax.scatter(pointcloud[:,0], pointcloud[:,1], pointcloud[:,2])
+
+            fig.set_size_inches(5, 5)
+            fig.savefig(Path(f'/evaluation/{Args.corrupt[-1]}_{Args.param}_{i}.png'), dpi=100)
+
+        print("rendering pointcloud locally...done")
+
     def trans(self, pointcloud, scale = 1):
         trans = np.random.rand(3) * scale
         pointcloud = np.add(trans, pointcloud)
@@ -124,26 +145,31 @@ class ModelNet40(Dataset):
         return pointcloud
 
     def noise(self, pointcloud, scale = 0.02):
+        scale = Args.param
         trans = np.random.randn(*pointcloud.shape) * scale
         pointcloud = pointcloud + trans
         return pointcloud
 
     def remove_local(self, pointcloud, scale = 0.1):
+        scale = Args.param
         idx = np.random.randint(pointcloud.shape[0])
         center = pointcloud[idx]
         pointcloud = pointcloud[np.linalg.norm(pointcloud - center, axis=1) > scale]
         return pointcloud
 
     def warp(self, pointcloud, scale = 1.1):
+        scale = Args.param
         pointcloud = np.power(pointcloud, scale)
         return pointcloud
 
     def drop_uniform(self, pointcloud, prob = 0.5):
+        prob = Args.param
         idx = round(prob * pointcloud.shape[0]) - 1
         pointcloud = pointcloud[:idx]
         return pointcloud
 
     def drop(self, pointcloud, prob = 0):
+        prob = Args.param
         axis = np.random.randint(0,3)
         low = np.min(pointcloud[:,axis])
         high = np.max(pointcloud[:,axis])
@@ -158,7 +184,7 @@ class ModelNet40(Dataset):
         return pointcloud
 
 if __name__ == '__main__':
-    dataset = ModelNet40(operation='drop')
+    dataset = ModelNet40(operations=['noise'])
 
     wandb.login()
     wandb.init(
@@ -167,6 +193,9 @@ if __name__ == '__main__':
         group='test',
     )
 
-    dataset.visualize()
+    for noise in [0.01, 0.02, 0.03, 0.05]:
+        Args.param = noise
+        dataset.visualize()
+        dataset.render_image()
 
     wandb.finish()
