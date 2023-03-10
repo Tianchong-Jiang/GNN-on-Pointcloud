@@ -12,6 +12,10 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from default_args import Args
+
+
+
 
 def cal_loss(pred, gold, smoothing=True):
     ''' Calculate cross entropy loss, apply label smoothing if needed. '''
@@ -31,3 +35,6 @@ def cal_loss(pred, gold, smoothing=True):
 
     return loss
 
+
+def write_to_file(accuracy):
+    return

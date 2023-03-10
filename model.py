@@ -30,7 +30,7 @@ def knn(x, k):
     return idx
 
 
-def get_graph_feature(x, k=20, idx=None):
+def get_graph_feature(x, k=20, idx=None, first_layer = False):
     batch_size = x.size(0)
     num_points = x.size(2)
     x = x.view(batch_size, -1, num_points)
@@ -51,7 +51,23 @@ def get_graph_feature(x, k=20, idx=None):
     feature = feature.view(batch_size, num_points, k, num_dims)
     x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)
 
-    feature = torch.cat((feature-x, x), dim=3).permute(0, 3, 1, 2).contiguous()
+    if not first_layer:
+        feature = torch.cat((feature-x, x), dim=3)
+        feature = feature.permute(0, 3, 1, 2).contiguous()
+        return feature
+
+    if Args.kernel == 'global':
+        feature = x
+    elif Args.kernel == 'local':
+        feature = feature - x
+    elif Args.kernel == 'dist':
+        feature = torch.norm(feature - x, dim=3, keepdim=True)
+    elif Args.kernel == 'asym':
+        feature = torch.cat((feature-x, x), dim=3)
+    else:
+        print("Warning! Not a valid Kernel")
+
+    feature = feature.permute(0, 3, 1, 2).contiguous()
 
     return feature
 
@@ -92,13 +108,19 @@ class DGCNN(nn.Module):
         super(DGCNN, self).__init__()
         self.k = Args.k
 
+        in_dim = 3
+        if Args.kernel == 'dist':
+            in_dim = 1
+        elif Args.kernel == 'asym':
+            in_dim = 6
+
         self.bn1 = nn.BatchNorm2d(64)
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(128)
         self.bn4 = nn.BatchNorm2d(256)
         self.bn5 = nn.BatchNorm1d(Args.emb_dims)
 
-        self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=False),
+        self.conv1 = nn.Sequential(nn.Conv2d(in_dim, 64, kernel_size=1, bias=False),
                                    self.bn1,
                                    nn.LeakyReLU(negative_slope=0.2))
         self.conv2 = nn.Sequential(nn.Conv2d(64*2, 64, kernel_size=1, bias=False),
@@ -123,7 +145,7 @@ class DGCNN(nn.Module):
 
     def forward(self, x):
         batch_size = x.size(0)
-        x = get_graph_feature(x, k=self.k)
+        x = get_graph_feature(x, k=self.k, first_layer=True)
         x = self.conv1(x)
         x1 = x.max(dim=-1, keepdim=False)[0]
 

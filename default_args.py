@@ -5,7 +5,7 @@ from params_proto import Proto
 
 class Args(ParamsProto):
     # overall params
-    model = 'dgcnn_tnet'
+    model = 'dgcnn'
     model_path = 'models'
     device = 'cpu'
     eval = False
@@ -27,5 +27,5 @@ class Args(ParamsProto):
     prob = 0.5
 
     # kernel params
-    kernel = 'asym'
+    kernel = 'dist' # ['global', 'local', 'dist', 'asym',]
 

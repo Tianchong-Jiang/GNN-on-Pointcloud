@@ -174,7 +174,7 @@ if __name__ == "__main__":
         project=f'gnn-on-pointcloud',
         group='test',
     )
-    # os.environ["CUDA_VISIBLE_DEVICES"] = str(1)
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     if not Args.eval:
         train()
     else:
