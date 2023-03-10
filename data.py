@@ -67,12 +67,13 @@ def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.02):
 
 
 class ModelNet40(Dataset):
-    def __init__(self, partition = 'test', operation = 'noise'):
+    def __init__(self, partition = 'test', operations = ['trans']):
         self.data, self.label = load_data(partition)
         self.partition = partition
-        self.operation = operation
+        self.operations = operations
 
         self.op_dict = {
+            'trans': self.trans,
             'rigid': self.rigid,
             'noise': self.noise,
             'remove_local': self.remove_local,
@@ -86,9 +87,9 @@ class ModelNet40(Dataset):
         label = self.label[item]
 
         np.random.shuffle(pointcloud)
-        pointcloud = self.rigid(pointcloud)
 
-        pointcloud = self.op_dict[self.operation](pointcloud)
+        for operation in self.operations:
+            pointcloud = self.op_dict[operation](pointcloud)
 
         return pointcloud, label
 
@@ -103,6 +104,12 @@ class ModelNet40(Dataset):
             # import pdb; pdb.set_trace()
             wandb.log({f'label:{label}': wandb.Object3D(pointcloud)}, step = i)
         print('visualizing pointcloud on wandb...done')
+
+    def trans(self, pointcloud, scale = 1):
+        trans = np.random.rand(3) * scale
+        pointcloud = np.add(trans, pointcloud)
+
+        return pointcloud
 
     def rigid(self, pointcloud, scale = 1):
         rot = R.random().as_matrix()
