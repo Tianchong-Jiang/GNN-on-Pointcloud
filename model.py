@@ -16,6 +16,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import einops
 
 from default_args import Args
 
@@ -150,4 +151,65 @@ class DGCNN(nn.Module):
         x = F.leaky_relu(self.bn7(self.linear2(x)), negative_slope=0.2)
         x = self.dp2(x)
         x = self.linear3(x)
+        return x
+
+
+class Transform_Net(nn.Module):
+    def __init__(self):
+        super(Transform_Net, self).__init__()
+        self.k = Args.k
+
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(128)
+        self.bn3 = nn.BatchNorm1d(1024)
+
+        self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=False),
+                                   self.bn1,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv2 = nn.Sequential(nn.Conv2d(64, 128, kernel_size=1, bias=False),
+                                   self.bn2,
+                                   nn.LeakyReLU(negative_slope=0.2))
+        self.conv3 = nn.Sequential(nn.Conv1d(128, Args.emb_dims, kernel_size=1, bias=False),
+                                   self.bn3,
+                                   nn.LeakyReLU(negative_slope=0.2))
+
+        self.linear1 = nn.Linear(Args.emb_dims, 512, bias=False)
+        self.bn3 = nn.BatchNorm1d(512)
+        self.linear2 = nn.Linear(512, 256, bias=False)
+        self.bn4 = nn.BatchNorm1d(256)
+
+        self.transform = nn.Linear(256, 3*3)
+
+    def forward(self, x):
+        batch_size = x.size(0)
+
+        x = get_graph_feature(x, k=self.k)
+
+        x = self.conv1(x)                       # (batch_size, 3*2, num_points, k) -> (batch_size, 64, num_points, k)
+        x = self.conv2(x)                       # (batch_size, 64, num_points, k) -> (batch_size, 128, num_points, k)
+        x = x.max(dim=-1, keepdim=False)[0]     # (batch_size, 128, num_points, k) -> (batch_size, 128, num_points)
+
+        x = self.conv3(x)                       # (batch_size, 128, num_points) -> (batch_size, 1024, num_points)
+        x = x.max(dim=-1, keepdim=False)[0]     # (batch_size, 1024, num_points) -> (batch_size, 1024)
+
+        x = F.leaky_relu(self.bn3(self.linear1(x)), negative_slope=0.2)     # (batch_size, 1024) -> (batch_size, 512)
+        x = F.leaky_relu(self.bn4(self.linear2(x)), negative_slope=0.2)     # (batch_size, 512) -> (batch_size, 256)
+
+        x = self.transform(x)                   # (batch_size, 256) -> (batch_size, 3*3)
+        x = x.view(batch_size, 3, 3)            # (batch_size, 3*3) -> (batch_size, 3, 3)
+
+        return x
+
+
+class DGCNN_with_TNet(nn.Module):
+    def __init__(self):
+        super(DGCNN_with_TNet, self).__init__()
+        self.dgcnn = DGCNN()
+        self.tnet = Transform_Net()
+
+    def forward(self, x):
+        rot = self.tnet(x)
+        x = rot @ x
+        x = self.dgcnn(x)
+
         return x

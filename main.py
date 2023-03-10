@@ -25,34 +25,29 @@ import wandb
 
 from default_args import Args
 from data import ModelNet40
-from model import PointNet, DGCNN
+from model import PointNet, DGCNN, DGCNN_with_TNet
 
+arg2model = {
+    'pointnet': PointNet,
+    'dgcnn': DGCNN,
+    'dgcnn_tnet': DGCNN_with_TNet}
 
-def _init_():
-    if not os.path.exists('checkpoints'):
-        os.makedirs('checkpoints')
-    if not os.path.exists('checkpoints/'+args.exp_name):
-        os.makedirs('checkpoints/'+args.exp_name)
-    if not os.path.exists('checkpoints/'+args.exp_name+'/'+'models'):
-        os.makedirs('checkpoints/'+args.exp_name+'/'+'models')
-    os.system('cp main.py checkpoints'+'/'+args.exp_name+'/'+'main.py.backup')
-    os.system('cp model.py checkpoints' + '/' + args.exp_name + '/' + 'model.py.backup')
-    os.system('cp util.py checkpoints' + '/' + args.exp_name + '/' + 'util.py.backup')
-    os.system('cp data.py checkpoints' + '/' + args.exp_name + '/' + 'data.py.backup')
 
 def train():
-    train_loader = DataLoader(ModelNet40(partition='train'), num_workers=8,
+    train_loader = DataLoader(ModelNet40(partition='train', operations=Args.currupt), num_workers=8,
                               batch_size=Args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test'), num_workers=8,
+    test_loader = DataLoader(ModelNet40(partition='test', operations=Args.currupt), num_workers=8,
                              batch_size=Args.test_batch_size, shuffle=True, drop_last=False)
 
     #Try to load models
-    if Args.model == 'pointnet':
-        model = PointNet().to(Args.device)
-    elif Args.model == 'dgcnn':
-        model = DGCNN().to(Args.device)
-    else:
-        raise Exception("Not implemented")
+    model = arg2model[Args.model]().to(Args.device)
+
+    # if Args.model == 'pointnet':
+    #     model = PointNet().to(Args.device)
+    # elif Args.model == 'dgcnn':
+    #     model = DGCNN().to(Args.device)
+    # else:
+    #     raise Exception("Not implemented")
 
     print(f"model used:{Args.model}")
 
@@ -65,11 +60,8 @@ def train():
 
     criterion = cal_loss
 
-    best_test_acc = 0
     for epoch in range(Args.epochs):
-        ####################
-        # Train
-        ####################
+        ## train ##
         train_loss = 0.0
         count = 0.0
         model.train()
@@ -95,9 +87,7 @@ def train():
         wandb.log({'train_loss': loss, 'epoch': epoch})
         wandb.log({'accuracy': metrics.accuracy_score(train_true, train_pred), 'epoch': epoch})
 
-        ####################
-        # Test
-        ####################
+        ## test ##
         test_loss = 0.0
         count = 0.0
         model.eval()
@@ -122,11 +112,19 @@ def train():
         scheduler.step()
 
 def test():
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=Args.num_points),
+    test_loader = DataLoader(ModelNet40(partition='test', operations=Args.currupt),
                              batch_size=Args.test_batch_size, shuffle=True, drop_last=False)
 
     #Try to load models
-    model = DGCNN(Args).to(Args.device)
+    model = arg2model[Args.model]().to(Args.device)
+
+    # if Args.model == 'pointnet':
+    #     model = PointNet().to(Args.device)
+    # elif Args.model == 'dgcnn':
+    #     model = DGCNN().to(Args.device)
+    # else:
+    #     raise Exception("Not implemented")
+
     model = nn.DataParallel(model)
     model.load_state_dict(torch.load(Args.model_path))
     model = model.eval()
@@ -176,7 +174,7 @@ if __name__ == "__main__":
         project=f'gnn-on-pointcloud',
         group='test',
     )
-
+    # os.environ["CUDA_VISIBLE_DEVICES"] = str(1)
     if not Args.eval:
         train()
     else:
