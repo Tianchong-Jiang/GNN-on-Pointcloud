@@ -79,6 +79,8 @@ class ModelNet40(Dataset):
         self.operations = operations
 
         self.op_dict = {
+            'dummy': self.dummy,
+            'perm': self.dummy,
             'trans': self.trans,
             'rigid': self.rigid,
             'noise': self.noise,
@@ -86,13 +88,14 @@ class ModelNet40(Dataset):
             'warp': self.warp,
             'drop_uniform': self.drop_uniform,
             'drop': self.drop
-                      }
+            }
 
     def __getitem__(self, item):
         pointcloud = self.data[item]
         label = self.label[item]
 
-        np.random.shuffle(pointcloud)
+        if not Args.corrupt == 'dummy':
+            np.random.shuffle(pointcloud)
 
         for operation in self.operations:
             pointcloud = self.op_dict[operation](pointcloud)
@@ -113,18 +116,24 @@ class ModelNet40(Dataset):
 
     def render_image(self, num_samples = 5):
         print("rendering pointcloud locally...")
-        for i in range(num_samples):
-            pointcloud, label = self.__getitem__(i)
-            # import pdb; pdb.set_trace()
-            fig = plt.figure()
-            ax = fig.add_subplot(projection='3d')
 
-            ax.scatter(pointcloud[:,0], pointcloud[:,1], pointcloud[:,2])
+        pointcloud, label = self.__getitem__(2)
+        # import pdb; pdb.set_trace()
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
 
-            fig.set_size_inches(5, 5)
-            fig.savefig(Path(f'/evaluation/{Args.corrupt[-1]}_{Args.param}_{i}.png'), dpi=100)
+        ax.scatter(pointcloud[:,0], pointcloud[:,1], pointcloud[:,2])
+        ax.set_axis_off()
+        fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
+
+        fig.set_size_inches(5, 5)
+
+        fig.savefig(Path(f'/evaluation/{Args.corrupt[-1]}_{Args.param}_{2}.png'), dpi=100, pad_inches = 0)
 
         print("rendering pointcloud locally...done")
+
+    def dummy(self, pointcloud):
+        return pointcloud
 
     def trans(self, pointcloud, scale = 1):
         trans = np.random.rand(3) * scale
@@ -159,7 +168,10 @@ class ModelNet40(Dataset):
 
     def warp(self, pointcloud, scale = 1.1):
         scale = Args.param
-        pointcloud = np.power(pointcloud, scale)
+        axis = np.random.randint(0,3)
+        pointcloud = pointcloud + 1
+        pointcloud[:, axis] = np.power(pointcloud[:, axis], scale)
+        pointcloud = pointcloud - 1
         return pointcloud
 
     def drop_uniform(self, pointcloud, prob = 0.5):
@@ -184,7 +196,7 @@ class ModelNet40(Dataset):
         return pointcloud
 
 if __name__ == '__main__':
-    dataset = ModelNet40(operations=['noise'])
+
 
     wandb.login()
     wandb.init(
@@ -193,9 +205,35 @@ if __name__ == '__main__':
         group='test',
     )
 
-    for noise in [0.01, 0.02, 0.03, 0.05]:
-        Args.param = noise
-        dataset.visualize()
+    dataset = ModelNet40(operations=['noise'])
+    for param in [0.01, 0.02, 0.03, 0.05]:
+        Args.param = param
+        Args.corrupt = ['noise']
         dataset.render_image()
+
+    dataset = ModelNet40(operations=['remove_local'])
+    for param in [0.05, 0.1, 0.2, 0.3]:
+        Args.param = param
+        Args.corrupt = ['remove_local']
+        dataset.render_image()
+
+    dataset = ModelNet40(operations=['drop_uniform'])
+    for param in [0.8, 0.5, 0.2, 0.1]:
+        Args.param = param
+        Args.corrupt = ['drop_uniform']
+        dataset.render_image()
+
+    dataset = ModelNet40(operations=['drop'])
+    for param in [0.8, 0.5, 0.2, 0]:
+        Args.param = param
+        Args.corrupt = ['drop']
+        dataset.render_image()
+
+    dataset = ModelNet40(operations=['warp'])
+    for param in [1.05, 1.1, 1.2, 1.4]:
+        Args.param = param
+        Args.corrupt = ['warp']
+        dataset.render_image()
+
 
     wandb.finish()

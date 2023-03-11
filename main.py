@@ -22,6 +22,9 @@ from util import cal_loss
 import sklearn.metrics as metrics
 from params_proto.hyper import Sweep
 import wandb
+import csv
+from pathlib import Path
+
 
 from default_args import Args
 from data import ModelNet40
@@ -32,11 +35,30 @@ arg2model = {
     'dgcnn': DGCNN,
     'dgcnn_tnet': DGCNN_with_TNet}
 
+def save_data_to_csv(accuracy):
+    """This changes behavior depends on Args!!"""
+
+    row = [f"{Args.model}", f"{Args.corrupt}", f"{Args.k}", f"{Args.kernel}", f"{accuracy}"]
+
+    column_heading = ["model", "corrupt", "k", "kernel", "accuracy"]
+
+    path = Path(f'/evaluation/{Args.exp_name}.csv')
+
+    # Write heading if file doesn't exist
+    if not path.is_file():
+        with open(path, 'a+', newline='\n', encoding='utf-8') as f:
+            writer = csv.writer(f, delimiter=',')
+            writer.writerow(column_heading)
+    else:
+        with open(path, 'a', newline='\n', encoding='utf-8') as f:
+            writer = csv.writer(f, delimiter=',')
+            writer.writerow(row)
+
 
 def train():
-    train_loader = DataLoader(ModelNet40(partition='train', operations=Args.currupt), num_workers=8,
+    train_loader = DataLoader(ModelNet40(partition='train', operations=Args.corrupt), num_workers=8,
                               batch_size=Args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test', operations=Args.currupt), num_workers=8,
+    test_loader = DataLoader(ModelNet40(partition='test', operations=Args.corrupt), num_workers=8,
                              batch_size=Args.test_batch_size, shuffle=True, drop_last=False)
 
     #Try to load models
@@ -110,6 +132,8 @@ def train():
         wandb.log({'test_accuracy': metrics.accuracy_score(train_true, train_pred), 'epoch': epoch})
 
         scheduler.step()
+
+
 
 def test():
     test_loader = DataLoader(ModelNet40(partition='test', operations=Args.currupt),

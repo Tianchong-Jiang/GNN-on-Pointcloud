@@ -6,7 +6,7 @@ from default_args import Args
 this_file_name = sys.argv[0]
 
 with Sweep(Args) as sweep:
-    with sweep.product:
+    with sweep.zip:
         Args.currupt = ['trans']
         Args.scale = [0.1]
 

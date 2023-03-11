@@ -4,6 +4,9 @@ from params_proto import Proto
 
 
 class Args(ParamsProto):
+    # experiment name
+    exp_name = 'test'
+
     # overall params
     model = 'dgcnn'
     model_path = 'models'
@@ -14,7 +17,7 @@ class Args(ParamsProto):
     lr = 0.001
     batch_size = 32
     test_batch_size = 16
-    epochs = 50
+    epochs = 1
 
     # model params
     dropout = 0.5
@@ -26,5 +29,5 @@ class Args(ParamsProto):
     param = 0.01
 
     # kernel params
-    kernel = 'dist' # ['global', 'local', 'dist', 'asym',]
+    kernel = 'asym' # ['global', 'local', 'dist', 'asym',]
 
