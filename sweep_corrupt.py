@@ -9,7 +9,7 @@ with Sweep(Args) as sweep:
     with sweep.product:
         Args.model = ['pointnet', 'dgcnn']
         Args.corrupt = [['noise'], ['remove_local'], ['drop_uniform'], ['drop'], ['warp']]
-        Args.param = [0, 1, 2, 3, 4]
+        Args.level = [0, 1, 2, 3, 4, 5, 6]
 
 
 

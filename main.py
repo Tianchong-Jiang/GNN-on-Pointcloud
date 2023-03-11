@@ -38,9 +38,9 @@ arg2model = {
 def save_data_to_csv(train_accuracy, test_accuracy):
     """This changes behavior depends on Args!!"""
 
-    row = [f"{Args.model}", f"{Args.corrupt[-1]}", f"{Args.k}", f"{Args.kernel}", f"{train_accuracy}", f"{test_accuracy}"]
+    row = [f"{Args.model}", f"{Args.corrupt[-1]}", f"{Args.k}", f"{Args.level}", f"{Args.kernel}", f"{train_accuracy}", f"{test_accuracy}"]
 
-    column_heading = ["model", "corrupt", "k", "kernel", "train_accuracy", "test_accuracy"]
+    column_heading = ["model", "corrupt", "k", "level", "kernel", "train_accuracy", "test_accuracy"]
 
     path = Path(f'/evaluation/{Args.exp_name}.csv')
 
@@ -56,9 +56,11 @@ def save_data_to_csv(train_accuracy, test_accuracy):
 
 
 def train():
-    train_loader = DataLoader(ModelNet40(partition='train', operations=Args.corrupt), num_workers=0,
+    train_set = ModelNet40(partition='train', operations=Args.corrupt)
+    test_set = ModelNet40(partition='test', operations=Args.corrupt)
+    train_loader = DataLoader(train_set, num_workers=0,
                               batch_size=Args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test', operations=Args.corrupt), num_workers=0,
+    test_loader = DataLoader(test_set, num_workers=0,
                              batch_size=Args.test_batch_size, shuffle=True, drop_last=False)
 
     #Try to load models
@@ -90,6 +92,7 @@ def train():
         train_pred = []
         train_true = []
         for data, label in train_loader:
+            data = train_set.process_data(data)
             data, label = data.to(Args.device, dtype=torch.float), label.to(Args.device, dtype=torch.float).squeeze()
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
@@ -117,6 +120,7 @@ def train():
         test_pred = []
         test_true = []
         for data, label in test_loader:
+            data = test_set.process_data(data)
             data, label = data.to(Args.device, dtype=torch.float), label.to(Args.device, dtype=torch.float).squeeze()
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
@@ -191,11 +195,13 @@ if __name__ == "__main__":
     wandb.login()
     wandb.init(
         # Set the project where this run will be logged
-        project=f'gnn-on-pointcloud',
-        group='3_3_2130',
+        project=f'gnn-on-pointcloud-T0300',
+        group='test',
         config=vars(Args),
     )
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+    Args.exp_name = "corrupt"
+
     if not Args.eval:
         train()
     else:

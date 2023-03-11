@@ -22,6 +22,7 @@ import wandb
 import matplotlib.pyplot as plt
 from default_args import Args
 from pathlib import Path
+import torch
 
 
 def download():
@@ -94,18 +95,19 @@ class ModelNet40(Dataset):
         pointcloud = self.data[item]
         label = self.label[item]
 
-        if not Args.corrupt == 'dummy':
-            np.random.shuffle(pointcloud)
-
-        for operation in self.operations:
-            pointcloud = self.op_dict[operation](pointcloud)
-
-        pointcloud = pointcloud[:1024]
-
         return pointcloud, label
 
     def __len__(self):
         return self.data.shape[0]
+
+    def process_data(self, pointcloud):
+        if not Args.corrupt == 'dummy':
+            pointcloud=pointcloud[:,torch.randperm(pointcloud.shape[1]),:]
+
+        for operation in self.operations:
+            pointcloud = self.op_dict[operation](pointcloud)
+
+        return pointcloud
 
     def visualize(self, num_samples = 10):
         print('visualizing pointcloud on wandb...')
@@ -145,59 +147,68 @@ class ModelNet40(Dataset):
         rot = R.random().as_matrix()
         trans = np.random.rand(3) * scale
 
-        pointcloud = einops.rearrange(pointcloud, 'n d -> d n')
+        pointcloud = einops.rearrange(pointcloud, 'b n d -> b d n')
         pointcloud = rot @ pointcloud
-        pointcloud = einops.rearrange(pointcloud, 'd n -> n d')
+        pointcloud = einops.rearrange(pointcloud, 'b d n -> b n d')
 
         pointcloud = np.add(trans, pointcloud)
 
         return pointcloud
 
-    def noise(self, pointcloud, level = 1):
-        levels = [0, 0.01, 0.02, 0.03, 0.05]
-        trans = np.random.randn(*pointcloud.shape) * levels[level]
+    def noise(self, pointcloud):
+        levels = [0, 0.01, 0.02, 0.03, 0.05, 0.1, 0.3]
+        trans = np.random.randn(*pointcloud.shape) * levels[Args.level]
         pointcloud = pointcloud + trans
         return pointcloud
 
-    def remove_local(self, pointcloud, level = 1):
-        levels = [0, 0.05, 0.1, 0.2, 0.3]
-        idx = np.random.randint(pointcloud.shape[0])
-        center = pointcloud[idx]
-        pointcloud = pointcloud[np.linalg.norm(pointcloud - center, axis=1) > levels[level]]
+    def remove_local(self, pointcloud):
+        levels = [0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5]
+        idx = np.random.randint(pointcloud.shape[1])
+        lengths = []
+        for i in range(pointcloud.shape[0]):
+            item = pointcloud[i]
+            center = item[idx]
+            item = item[torch.norm(item - center, dim=1) > levels[Args.level]]
+            pointcloud[i,:item.shape[0]] = item
+            lengths.append(item.shape[0])
+
+        pointcloud = pointcloud[:, :min(lengths)]
+
         return pointcloud
 
-    def warp(self, pointcloud, level = 1):
-        levels = [1, 1.05, 1.1, 1.2, 1.4]
-        scale = np.random.uniform(1.0, levels[level])
+    def warp(self, pointcloud):
+        levels = [1, 1.05, 1.1, 1.2, 1.4, 1.8, 2.5]
+        scale = np.random.uniform(1.0, levels[Args.level])
         axis = np.random.randint(0,3)
         pointcloud = pointcloud + 1
-        pointcloud[:, axis] = np.power(pointcloud[:, axis], scale)
+        pointcloud[:, :, axis] = torch.pow(pointcloud[:, :, axis], scale)
         pointcloud = pointcloud - 1
         return pointcloud
 
-    def drop_uniform(self, pointcloud, level = 0.2):
-        levels = [1, 0.8, 0.5, 0.2, 0.1]
-        prob = np.random.uniform(levels[level], 1.0)
-        idx = round(prob * pointcloud.shape[0]) - 1
-        pointcloud = pointcloud[:idx]
+    def drop_uniform(self, pointcloud):
+        levels = [1, 0.8, 0.5, 0.2, 0.1, 0.05, 0.01]
+        prob = np.random.uniform(levels[Args.level], 1.0)
+        idx = int(prob * pointcloud.shape[1]) - 1
+        pointcloud = pointcloud[:, :idx]
         return pointcloud
 
-    def drop(self, pointcloud, level = 1):
-        levels = [1, 0.8, 0.5, 0.2, 0]
-        prob = np.random.uniform(levels[level], 1.0)
+    def drop(self, pointcloud):
+        levels = [1, 0.9, 0.5, 0.3, 0.2, 0.1, 0]
+        prob = np.random.uniform(levels[Args.level], 1.0)
         axis = np.random.randint(0,3)
-        low = np.min(pointcloud[:,axis])
-        high = np.max(pointcloud[:,axis])
-        selected_points = pointcloud[0, None, :]
-        count = 0
-        while len(selected_points) < 1024:
-            rands = np.random.uniform(0, 1, pointcloud.shape[0])
-            dist_to_low = ((pointcloud[:, axis] - low) / (high - low))
+
+        lengths = []
+        for i in range(pointcloud.shape[0]):
+            item = pointcloud[i]
+            rands = torch.rand(item.shape[0])
+            dist_to_low = ((item[:, axis] + 1) / 2)
             prob_accept = prob + (1 - prob) * dist_to_low
-            selected_points = np.concatenate([pointcloud[rands < prob_accept], selected_points], axis=0)
-            count += 1
-            if count > 100:
-                import pdb; pdb.set_trace()
+            item = item[rands < prob_accept]
+            pointcloud[i,:item.shape[0]] = item
+            lengths.append(item.shape[0])
+
+        pointcloud = pointcloud[:, :min(lengths)]
+
         return pointcloud
 
 if __name__ == '__main__':
