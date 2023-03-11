@@ -35,12 +35,12 @@ arg2model = {
     'dgcnn': DGCNN,
     'dgcnn_tnet': DGCNN_with_TNet}
 
-def save_data_to_csv(accuracy):
+def save_data_to_csv(train_accuracy, test_accuracy):
     """This changes behavior depends on Args!!"""
 
-    row = [f"{Args.model}", f"{Args.corrupt}", f"{Args.k}", f"{Args.kernel}", f"{accuracy}"]
+    row = [f"{Args.model}", f"{Args.corrupt[-1]}", f"{Args.k}", f"{Args.kernel}", f"{train_accuracy}", f"{test_accuracy}"]
 
-    column_heading = ["model", "corrupt", "k", "kernel", "accuracy"]
+    column_heading = ["model", "corrupt", "k", "kernel", "train_accuracy", "test_accuracy"]
 
     path = Path(f'/evaluation/{Args.exp_name}.csv')
 
@@ -49,16 +49,16 @@ def save_data_to_csv(accuracy):
         with open(path, 'a+', newline='\n', encoding='utf-8') as f:
             writer = csv.writer(f, delimiter=',')
             writer.writerow(column_heading)
-    else:
-        with open(path, 'a', newline='\n', encoding='utf-8') as f:
-            writer = csv.writer(f, delimiter=',')
-            writer.writerow(row)
+
+    with open(path, 'a', newline='\n', encoding='utf-8') as f:
+        writer = csv.writer(f, delimiter=',')
+        writer.writerow(row)
 
 
 def train():
-    train_loader = DataLoader(ModelNet40(partition='train', operations=Args.corrupt), num_workers=8,
+    train_loader = DataLoader(ModelNet40(partition='train', operations=Args.corrupt), num_workers=0,
                               batch_size=Args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test', operations=Args.corrupt), num_workers=8,
+    test_loader = DataLoader(ModelNet40(partition='test', operations=Args.corrupt), num_workers=0,
                              batch_size=Args.test_batch_size, shuffle=True, drop_last=False)
 
     #Try to load models
@@ -73,7 +73,7 @@ def train():
 
     print(f"model used:{Args.model}")
 
-    model = nn.DataParallel(model)
+    # model = nn.DataParallel(model)
     print("Let's use", torch.cuda.device_count(), "GPUs!")
 
     opt = optim.Adam(model.parameters(), lr=Args.lr, weight_decay=1e-4)
@@ -105,9 +105,10 @@ def train():
             train_pred.append(preds.detach().cpu().numpy())
         train_true = np.concatenate(train_true)
         train_pred = np.concatenate(train_pred)
+        train_accuracy = metrics.accuracy_score(train_true, train_pred)
 
         wandb.log({'train_loss': loss, 'epoch': epoch})
-        wandb.log({'accuracy': metrics.accuracy_score(train_true, train_pred), 'epoch': epoch})
+        wandb.log({'accuracy': train_accuracy, 'epoch': epoch})
 
         ## test ##
         test_loss = 0.0
@@ -129,11 +130,12 @@ def train():
         test_true = np.concatenate(test_true)
         test_pred = np.concatenate(test_pred)
 
-        wandb.log({'test_accuracy': metrics.accuracy_score(train_true, train_pred), 'epoch': epoch})
+        test_accuracy = metrics.accuracy_score(test_true, test_pred)
+        wandb.log({'test_accuracy': test_accuracy, 'epoch': epoch})
 
         scheduler.step()
 
-
+    save_data_to_csv(train_accuracy, test_accuracy)
 
 def test():
     test_loader = DataLoader(ModelNet40(partition='test', operations=Args.currupt),
@@ -141,13 +143,6 @@ def test():
 
     #Try to load models
     model = arg2model[Args.model]().to(Args.device)
-
-    # if Args.model == 'pointnet':
-    #     model = PointNet().to(Args.device)
-    # elif Args.model == 'dgcnn':
-    #     model = DGCNN().to(Args.device)
-    # else:
-    #     raise Exception("Not implemented")
 
     model = nn.DataParallel(model)
     model.load_state_dict(torch.load(Args.model_path))
@@ -169,23 +164,24 @@ def test():
 
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("sweep_file",
-    #                     type=str, help="sweep file")
-    # parser.add_argument("-l", "--line-number",
-    #                     type=int, help="line number of the sweep-file")
-    # args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("sweep_file",
+                        type=str, help="sweep file")
+    parser.add_argument("-l", "--line-number",
+                        type=int, help="line number of the sweep-file")
+    args = parser.parse_args()
 
-    # # Obtain kwargs from Sweep
-    # sweep = Sweep(Args).load(args.sweep_file)
-    # kwargs = list(sweep)[args.line_number]
+    # Obtain kwargs from Sweep
+    sweep = Sweep(Args).load(args.sweep_file)
+    kwargs = list(sweep)[args.line_number]
 
-    # Args._update(kwargs)
+    Args._update(kwargs)
 
-    # if 'CUDA_VISIBLE_DEVICES' not in os.environ:
-    #     avail_gpus = [3]
-    #     cvd = avail_gpus[args.line_number % len(avail_gpus)]
-    #     os.environ["CUDA_VISIBLE_DEVICES"] = str(cvd)
+    if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+        avail_gpus = [3]
+        cvd = avail_gpus[args.line_number % len(avail_gpus)]
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(cvd)
+
     Args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # _init_()
@@ -196,7 +192,8 @@ if __name__ == "__main__":
     wandb.init(
         # Set the project where this run will be logged
         project=f'gnn-on-pointcloud',
-        group='test',
+        group='3_3_2130',
+        config=vars(Args),
     )
     # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     if not Args.eval:

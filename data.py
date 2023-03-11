@@ -100,6 +100,8 @@ class ModelNet40(Dataset):
         for operation in self.operations:
             pointcloud = self.op_dict[operation](pointcloud)
 
+        pointcloud = pointcloud[:1024]
+
         return pointcloud, label
 
     def __len__(self):
@@ -110,7 +112,6 @@ class ModelNet40(Dataset):
         # Visualize pointcloud on Wandb
         for i in range(num_samples):
             pointcloud, label = self.__getitem__(i)
-            # import pdb; pdb.set_trace()
             wandb.log({f'label:{label}': wandb.Object3D(pointcloud)}, step = i)
         print('visualizing pointcloud on wandb...done')
 
@@ -118,7 +119,6 @@ class ModelNet40(Dataset):
         print("rendering pointcloud locally...")
 
         pointcloud, label = self.__getitem__(2)
-        # import pdb; pdb.set_trace()
         fig = plt.figure()
         ax = fig.add_subplot(projection='3d')
 
@@ -153,46 +153,51 @@ class ModelNet40(Dataset):
 
         return pointcloud
 
-    def noise(self, pointcloud, scale = 0.02):
-        scale = Args.param
-        trans = np.random.randn(*pointcloud.shape) * scale
+    def noise(self, pointcloud, level = 1):
+        levels = [0, 0.01, 0.02, 0.03, 0.05]
+        trans = np.random.randn(*pointcloud.shape) * levels[level]
         pointcloud = pointcloud + trans
         return pointcloud
 
-    def remove_local(self, pointcloud, scale = 0.1):
-        scale = Args.param
+    def remove_local(self, pointcloud, level = 1):
+        levels = [0, 0.05, 0.1, 0.2, 0.3]
         idx = np.random.randint(pointcloud.shape[0])
         center = pointcloud[idx]
-        pointcloud = pointcloud[np.linalg.norm(pointcloud - center, axis=1) > scale]
+        pointcloud = pointcloud[np.linalg.norm(pointcloud - center, axis=1) > levels[level]]
         return pointcloud
 
-    def warp(self, pointcloud, scale = 1.1):
-        scale = Args.param
+    def warp(self, pointcloud, level = 1):
+        levels = [1, 1.05, 1.1, 1.2, 1.4]
+        scale = np.random.uniform(1.0, levels[level])
         axis = np.random.randint(0,3)
         pointcloud = pointcloud + 1
         pointcloud[:, axis] = np.power(pointcloud[:, axis], scale)
         pointcloud = pointcloud - 1
         return pointcloud
 
-    def drop_uniform(self, pointcloud, prob = 0.5):
-        prob = Args.param
+    def drop_uniform(self, pointcloud, level = 0.2):
+        levels = [1, 0.8, 0.5, 0.2, 0.1]
+        prob = np.random.uniform(levels[level], 1.0)
         idx = round(prob * pointcloud.shape[0]) - 1
         pointcloud = pointcloud[:idx]
         return pointcloud
 
-    def drop(self, pointcloud, prob = 0):
-        prob = Args.param
+    def drop(self, pointcloud, level = 1):
+        levels = [1, 0.8, 0.5, 0.2, 0]
+        prob = np.random.uniform(levels[level], 1.0)
         axis = np.random.randint(0,3)
         low = np.min(pointcloud[:,axis])
         high = np.max(pointcloud[:,axis])
-        selected_points = []
-        for point in pointcloud:
-            # draw random number base on x (or y z) position of the point
-            dist_to_low = ((point[axis] - low) / (high - low))
+        selected_points = pointcloud[0, None, :]
+        count = 0
+        while len(selected_points) < 1024:
+            rands = np.random.uniform(0, 1, pointcloud.shape[0])
+            dist_to_low = ((pointcloud[:, axis] - low) / (high - low))
             prob_accept = prob + (1 - prob) * dist_to_low
-            if np.random.uniform() < prob_accept:
-                selected_points.append(point)
-        pointcloud = np.asarray(selected_points)
+            selected_points = np.concatenate([pointcloud[rands < prob_accept], selected_points], axis=0)
+            count += 1
+            if count > 100:
+                import pdb; pdb.set_trace()
         return pointcloud
 
 if __name__ == '__main__':
@@ -234,6 +239,5 @@ if __name__ == '__main__':
         Args.param = param
         Args.corrupt = ['warp']
         dataset.render_image()
-
 
     wandb.finish()

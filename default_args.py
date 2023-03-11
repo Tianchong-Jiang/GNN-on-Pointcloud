@@ -15,9 +15,9 @@ class Args(ParamsProto):
 
     # training params
     lr = 0.001
-    batch_size = 32
+    batch_size = 16
     test_batch_size = 16
-    epochs = 1
+    epochs = 50
 
     # model params
     dropout = 0.5
@@ -26,7 +26,7 @@ class Args(ParamsProto):
 
     # currupt params
     corrupt = ['trans']
-    param = 0.01
+    param = 1
 
     # kernel params
     kernel = 'asym' # ['global', 'local', 'dist', 'asym',]
