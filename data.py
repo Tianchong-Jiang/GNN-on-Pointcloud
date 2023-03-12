@@ -84,6 +84,7 @@ class ModelNet40(Dataset):
             'perm': self.dummy,
             'trans': self.trans,
             'rigid': self.rigid,
+            'scale': self.scale,
             'noise': self.noise,
             'remove_local': self.remove_local,
             'warp': self.warp,
@@ -104,8 +105,13 @@ class ModelNet40(Dataset):
         if not Args.corrupt == 'dummy':
             pointcloud=pointcloud[:,torch.randperm(pointcloud.shape[1]),:]
 
+        copy = pointcloud.clone()
         for operation in self.operations:
             pointcloud = self.op_dict[operation](pointcloud)
+
+        if pointcloud.shape[1] < Args.k:
+            print("num points less than k!")
+            pointcloud = torch.cat((pointcloud, copy[:, :Args.k - pointcloud.shape[1]]), dim=1)
 
         return pointcloud
 
@@ -137,15 +143,16 @@ class ModelNet40(Dataset):
     def dummy(self, pointcloud):
         return pointcloud
 
-    def trans(self, pointcloud, scale = 1):
-        trans = np.random.rand(3) * scale
+    def trans(self, pointcloud):
+        trans = np.random.uniform(0, 5, 3)
         pointcloud = np.add(trans, pointcloud)
 
         return pointcloud
 
-    def rigid(self, pointcloud, scale = 1):
+    def rigid(self, pointcloud):
         rot = R.random().as_matrix()
-        trans = np.random.rand(3) * scale
+        rot = torch.as_tensor(rot).to(dtype=torch.float)
+        trans = np.random.uniform(0, 5, 3)
 
         pointcloud = einops.rearrange(pointcloud, 'b n d -> b d n')
         pointcloud = rot @ pointcloud
@@ -153,6 +160,11 @@ class ModelNet40(Dataset):
 
         pointcloud = np.add(trans, pointcloud)
 
+        return pointcloud
+
+    def scale(self, pointcloud):
+        scale = np.random.uniform(0.5, 5)
+        pointcloud = pointcloud * scale
         return pointcloud
 
     def noise(self, pointcloud):

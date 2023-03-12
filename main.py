@@ -92,7 +92,7 @@ def train():
         train_pred = []
         train_true = []
         for data, label in train_loader:
-            data = train_set.process_data(data)
+            # data = train_set.process_data(data)
             data, label = data.to(Args.device, dtype=torch.float), label.to(Args.device, dtype=torch.float).squeeze()
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
@@ -188,19 +188,17 @@ if __name__ == "__main__":
 
     Args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # _init_()
-
     torch.manual_seed(42)
 
     wandb.login()
     wandb.init(
         # Set the project where this run will be logged
-        project=f'gnn-on-pointcloud-T0300',
+        project=f'gnn-on-pointcloud-T0800',
         group='test',
         config=vars(Args),
     )
 
-    Args.exp_name = "corrupt"
+    Args.exp_name = "inv_seen"
 
     if not Args.eval:
         train()

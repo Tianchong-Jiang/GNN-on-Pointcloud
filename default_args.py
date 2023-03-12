@@ -26,7 +26,7 @@ class Args(ParamsProto):
 
     # currupt params
     corrupt = ['trans']
-    level = 1
+    level = 0
 
     # kernel params
     kernel = 'asym' # ['global', 'local', 'dist', 'asym',]
