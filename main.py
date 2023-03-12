@@ -38,7 +38,7 @@ arg2model = {
 def save_data_to_csv(train_accuracy, test_accuracy):
     """This changes behavior depends on Args!!"""
 
-    row = [f"{Args.model}", f"{Args.corrupt[-1]}", f"{Args.k}", f"{Args.level}", f"{Args.kernel}", f"{train_accuracy}", f"{test_accuracy}"]
+    row = [f"{Args.model}", f"{'_'.join(Args.corrupt)}", f"{Args.k}", f"{Args.level}", f"{Args.kernel}", f"{train_accuracy}", f"{test_accuracy}"]
 
     column_heading = ["model", "corrupt", "k", "level", "kernel", "train_accuracy", "test_accuracy"]
 
@@ -66,13 +66,6 @@ def train():
     #Try to load models
     model = arg2model[Args.model]().to(Args.device)
 
-    # if Args.model == 'pointnet':
-    #     model = PointNet().to(Args.device)
-    # elif Args.model == 'dgcnn':
-    #     model = DGCNN().to(Args.device)
-    # else:
-    #     raise Exception("Not implemented")
-
     print(f"model used:{Args.model}")
 
     # model = nn.DataParallel(model)
@@ -84,6 +77,8 @@ def train():
 
     criterion = cal_loss
 
+    accumulation_steps = int(16 / Args.batch_size)
+
     for epoch in range(Args.epochs):
         ## train ##
         train_loss = 0.0
@@ -91,21 +86,24 @@ def train():
         model.train()
         train_pred = []
         train_true = []
+        step = 0
         for data, label in train_loader:
-            # data = train_set.process_data(data)
+            data = train_set.process_data(data)
             data, label = data.to(Args.device, dtype=torch.float), label.to(Args.device, dtype=torch.float).squeeze()
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
-            opt.zero_grad()
             logits = model(data)
-            loss = criterion(logits, label)
+            loss = criterion(logits, label) / accumulation_steps
             loss.backward()
-            opt.step()
+            if (step + 1) % accumulation_steps == 0:
+                opt.step()
+                opt.zero_grad()
             preds = logits.max(dim=1)[1]
             count += batch_size
             train_loss += loss.item() * batch_size
             train_true.append(label.cpu().numpy())
             train_pred.append(preds.detach().cpu().numpy())
+            step += 1
         train_true = np.concatenate(train_true)
         train_pred = np.concatenate(train_pred)
         train_accuracy = metrics.accuracy_score(train_true, train_pred)
@@ -193,12 +191,12 @@ if __name__ == "__main__":
     wandb.login()
     wandb.init(
         # Set the project where this run will be logged
-        project=f'gnn-on-pointcloud-T0800',
+        project=f'gnn-on-pointcloud-T1500',
         group='test',
         config=vars(Args),
     )
 
-    Args.exp_name = "inv_seen"
+    Args.exp_name = "k"
 
     if not Args.eval:
         train()

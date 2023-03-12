@@ -8,9 +8,9 @@ this_file_name = sys.argv[0]
 with Sweep(Args) as sweep:
     with sweep.product:
         Args.model = ['dgcnn']
-        Args.kernel = ['asym', 'local', 'global', 'dist']
-        Args.corrupt = [['noise'], ['remove_local'], ['drop_uniform'], ['drop'], ['warp']]
-        Args.level = [0, 1, 2, 3, 4, 5, 6]
+        Args.corrupt = [['dummy'], ['noise'], ['remove_local'], ['drop_uniform'], ['drop'], ['warp']]
+        Args.level = [5]
+        Args.k = [1, 2, 3, 5, 10, 15, 20, 25, 30]
 
 
 

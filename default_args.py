@@ -16,8 +16,8 @@ class Args(ParamsProto):
     # training params
     lr = 0.001
     batch_size = 16
-    test_batch_size = 8
-    epochs = 20
+    test_batch_size = 2
+    epochs = 5
 
     # model params
     dropout = 0.5
