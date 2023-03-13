@@ -191,12 +191,12 @@ if __name__ == "__main__":
     wandb.login()
     wandb.init(
         # Set the project where this run will be logged
-        project=f'gnn-on-pointcloud-T1500',
+        project=f'gnn-on-pointcloud-T2000',
         group='test',
         config=vars(Args),
     )
 
-    Args.exp_name = "k"
+    Args.exp_name = "inv_seen"
 
     if not Args.eval:
         train()

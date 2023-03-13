@@ -1,0 +1,15 @@
+{"model": "pointnet", "corrupt": ["dummy"], "kernel": "asym"}
+{"model": "pointnet", "corrupt": ["trans"], "kernel": "asym"}
+{"model": "pointnet", "corrupt": ["rigid"], "kernel": "asym"}
+{"model": "pointnet", "corrupt": ["scale"], "kernel": "asym"}
+{"model": "pointnet", "corrupt": ["rigid", "scale"], "kernel": "asym"}
+{"model": "dgcnn", "corrupt": ["dummy"], "kernel": "asym"}
+{"model": "dgcnn", "corrupt": ["trans"], "kernel": "asym"}
+{"model": "dgcnn", "corrupt": ["rigid"], "kernel": "asym"}
+{"model": "dgcnn", "corrupt": ["scale"], "kernel": "asym"}
+{"model": "dgcnn", "corrupt": ["rigid", "scale"], "kernel": "asym"}
+{"model": "dgcnn_tnet", "corrupt": ["dummy"], "kernel": "asym"}
+{"model": "dgcnn_tnet", "corrupt": ["trans"], "kernel": "asym"}
+{"model": "dgcnn_tnet", "corrupt": ["rigid"], "kernel": "asym"}
+{"model": "dgcnn_tnet", "corrupt": ["scale"], "kernel": "asym"}
+{"model": "dgcnn_tnet", "corrupt": ["rigid", "scale"], "kernel": "asym"}
